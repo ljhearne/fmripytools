@@ -30,10 +30,16 @@ parser.add_argument('--input_img',
                     default=None,
                     help='''input bold data''')
 
+parser.add_argument('--input_img_json',
+                    type=str,
+                    default=None,
+                    help='''json file associated with bold data''')
+
 parser.add_argument('--denoise_strategy',
                     type=str,
                     default=None,
-                    help='''denoise strategy located in denoise_strategies.json''')
+                    help='''denoise strategy label
+                    located in denoise_strategies.json''')
 
 parser.add_argument('--filter_strategy',
                     type=str,
@@ -46,30 +52,8 @@ parser.add_argument('--output_img',
                     help='''output file''')
 
 
-def get_tr_cifti(img):
-    '''
-    Get image TR based on associated .json file
-    Assumes bids organisation
-    NOTE: would be better just to pass the json file
-    '''
-
-    img_json = f"{img.split('.dtseries.nii')[0]}.json"
-    img_params = json.load(open(img_json,))
-    return img_params['RepetitionTime']
-
-
-def get_tr_nifti(img):
-    '''
-    Get image TR based on associated .json file
-    Assumes bids organisation
-    '''
-
-    img_json = f"{img.split('.nii.gz')[0]}.json"
-    img_params = json.load(open(img_json,))
-    return img_params['RepetitionTime']
-
-
-def denoise_nifti(input_img, confound_strategy, filter_strategy, output_img):
+def denoise_img(input_img, input_img_json, confound_strategy,
+                filter_strategy, output_img):
 
     # Interpret the denoise strategy based on the json
     # Load confound strat (assumed to be in same location)
@@ -83,59 +67,60 @@ def denoise_nifti(input_img, confound_strategy, filter_strategy, output_img):
     # Load filter strat
     filter_params = parameters[filter_strategy]
 
-    # Clean the timeseries
-    cleaned_img = clean_img(input_img,
-                            detrend=True,
-                            standardize='zscore_sample',
-                            confounds=confounds,
-                            high_pass=filter_params['high_pass'],
-                            low_pass=filter_params['low_pass'],
-                            t_r=get_tr_nifti(input_img),
-                            kwargs={'clean__sample_mask': sample_mask,
-                                    'clean__filter': filter_params['filter']}
-                            )
+    # Get TR
+    t_r = json.load(open(input_img_json,))['RepetitionTime']
 
-    # save out
-    nb.save(cleaned_img, output_img)
-    return output_img
+    # Clean and save out timeseries
+    if input_img.endswith('.dtseries.nii'):
 
+        # get timeseries
+        img = nb.load(input_img)
+        timeseries = img.get_fdata()
 
-def denoise_cifti(input_img, confound_strategy, filter_strategy, output_img):
+        # clean the timeseries
+        # note: filtering is already done on the confounds
+        clean_timeseries = clean(
+            timeseries,
+            detrend=True,
+            standardize="zscore_sample",
+            confounds=confounds,
+            high_pass=filter_params['high_pass'],
+            low_pass=filter_params['low_pass'],
+            t_r=t_r,
+            sample_mask=sample_mask,
+            kwargs={'clean__filter': filter_params['filter']}
+        )
 
-    # Interpret the denoise strategy based on the json
-    # Load confound strat (assumed to be in same location)
-    parameters = json.load(open(os.path.dirname(os.path.realpath(__file__))
-                                + '/denoise_config.json',))
+        # save out accounting for lose of timepoints with
+        # sample_mask
+        new_header = (
+            nb.cifti2.cifti2_axes.SeriesAxis(
+                start=0.0,
+                step=t_r,
+                size=clean_timeseries.shape[0],
+                unit='second'),
+            img.header.get_axis(1)
+        )
 
-    # Get confounds
-    confounds, sample_mask = load_confounds_strategy(
-        input_img, **parameters[confound_strategy])
+        nb.save(nb.Cifti2Image(clean_timeseries,
+                               header=new_header,
+                               nifti_header=img.nifti_header), output_img)
 
-    # Load filter strat
-    filter_params = parameters[filter_strategy]
-
-    # get timeseries
-    img = nb.load(input_img)
-    timeseries = img.get_fdata()
-
-    # clean the timeseries
-    # note: filtering is already done on the confounds
-    # !FIX: ignores sample_mask
-    clean_timeseries = clean(
-        timeseries,
-        detrend=True,
-        standardize="zscore_sample",
-        confounds=confounds,
-        high_pass=filter_params['high_pass'],
-        low_pass=filter_params['low_pass'],
-        t_r=get_tr_cifti(input_img),
-        kwargs={'clean__filter': filter_params['filter']}
-    )
-
-    # save out
-    nb.save(nb.Cifti2Image(clean_timeseries,
-                           header=img.header,
-                           nifti_header=img.nifti_header), output_img)
+    elif input_img.endswith('.nii.gz'):
+        # Clean the timeseries
+        cleaned_img = clean_img(input_img,
+                                detrend=True,
+                                standardize='zscore_sample',
+                                confounds=confounds,
+                                high_pass=filter_params['high_pass'],
+                                low_pass=filter_params['low_pass'],
+                                t_r=t_r,
+                                kwargs={'clean__sample_mask': sample_mask,
+                                        'clean__filter':
+                                        filter_params['filter']}
+                                )
+        # save out
+        nb.save(cleaned_img, output_img)
     return output_img
 
 
@@ -143,17 +128,7 @@ if __name__ == '__main__':
     # Read in user-specified parameters
     args = parser.parse_args()
 
-    if args.input_img.endswith('.nii.gz'):
-        print('NIFTI assumed')
-        denoise_nifti(args.input_img,
-                      args.denoise_strategy,
-                      args.filter_strategy,
-                      args.output_img)
-
-    elif args.input_img.endswith('.dtseries.nii'):
-        print('CIFTI assumed')
-        denoise_cifti(args.input_img,
-                      args.denoise_strategy,
-                      args.filter_strategy,
-                      args.output_img)
-
+    denoise_img(args.input_img,
+                args.denoise_strategy,
+                args.filter_strategy,
+                args.output_img)
