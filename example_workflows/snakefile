@@ -1,0 +1,194 @@
+'''
+Snakemake workflow for the OCD FUS project.
+This code is tested on Lucky3 then transferred to HCP
+where multiple workflows can be easily paralleled
+snakemake --dag | dot -Tpng > dag.png; snakemake --rulegraph | dot -Tpng > dag_rules.png
+
+'''
+# Parameters
+# Testing
+# base_dir = "/home/lukeh/LabData/Lab_LucaC/P3857_FUS_for_OCD/Participant_Data/processed_imaging/data/"
+# parcellation = "/home/lukeh/LabData/Lab_LucaC/Luke/Backups/hpc_backups/parcellations/Tian2020MSA_2023/3T/Cortex-Subcortex/MNIvolumetric/Schaefer2018_100Parcels_7Networks_order_Tian_Subcortex_S1_MNI152NLin6Asym_2mm.nii.gz"
+# subjects = ["sub-01"]
+# sessions = ["pre01"]
+# denoises = ["simple+gsr"]
+# task_denoises = ["simple"]
+# filters = ["None"]
+# masks = ["NACC"]
+
+# Running:
+base_dir = "/mnt/backedup/home/lukeH/lukeH/projects/OCD_FUS/data/"
+parcellation = "/mnt/backedup/home/lukeH/shared/parcellations/Tian2020MSA_2023/3T/Cortex-Subcortex/MNIvolumetric/Schaefer2018_100Parcels_7Networks_order_Tian_Subcortex_S1_MNI152NLin6Asym_2mm.nii.gz"
+subjects = ["sub-01", "sub-02", "sub-03", "sub-04", "sub-05"]
+sessions = ["pre01", "pre02", "post01", "post02"]
+denoises = ["simple", "simple+gsr", "scrubbing.5", "scrubbing.5+gsr"]
+task_denoises = ["simple"]
+filters = ["None", "butterworth_0.01_0.10"]
+masks = ["NACC", "AMY"]
+
+# Consistent parameters:
+bids_dir = base_dir + "bids/"
+data_dir = base_dir + "derivatives/"
+parcel_label = "Schaefer100-MSB1"
+space = "MNI152NLin6Asym_res-02"
+contrast_labels = ["neutral", "negative"]
+glm_outputs = ["stat", "z_score"]
+
+rule all:
+    input:
+        expand(f"{data_dir}fmriprep_denoised_fALFF/{{subject}}/ses-{{session}}/func/{{subject}}_ses-{{session}}_task-rest_space-{{space}}_desc-preproc_denoise-{{denoise}}_filter-None_fALFF_roi-{{mask}}.csv",
+               subject=subjects,
+               session=sessions,
+               space=space,
+               denoise=denoises,
+               mask=masks,
+               ),
+        expand(f"{data_dir}fmriprep_denoised_fc/{{subject}}/ses-{{session}}/func/{{subject}}_ses-{{session}}_task-rest_space-{{space}}_desc-preproc_denoise-{{denoise}}_filter-{{filter}}_fc-{{mask}}-wholebrain.nii.gz",
+               subject=subjects,
+               session=sessions,
+               space=space,
+               denoise=denoises,
+               filter=filters,
+               mask=masks
+               ),
+        expand(f"{data_dir}fmriprep_denoised_fc/{{subject}}/ses-{{session}}/func/{{subject}}_ses-{{session}}_task-rest_space-{{space}}_desc-preproc_denoise-{{denoise}}_filter-{{filter}}_fc-{{parcel_label}}.csv",
+               subject=subjects,
+               session=sessions,
+               space=space,
+               denoise=denoises,
+               filter=filters,
+               parcel_label=parcel_label
+               ),
+        expand(f"{data_dir}fmriprep_GLM/{{subject}}/ses-{{session}}/func/{{subject}}_ses-{{session}}_task-pictures_space-{{space}}_denoise-{{task_denoise}}_contrast-{{contrast}}-{{output_type}}_roi-{{mask}}.csv",
+               subject=subjects,
+               session=sessions,
+               space=space,
+               task_denoise=task_denoises,
+               contrast=contrast_labels,
+               output_type=glm_outputs,
+               mask=masks
+               )
+
+
+rule denoise:
+    input:
+        f"{data_dir}fmriprep/{{subject}}/ses-{{session}}/func/{{subject}}_ses-{{session}}_task-rest_space-{{space}}_desc-preproc_bold.nii.gz"
+    output:
+        f"{data_dir}fmriprep_denoised/{{subject}}/ses-{{session}}/func/{{subject}}_ses-{{session}}_task-rest_space-{{space}}_desc-preproc_denoise-{{denoise}}_filter-{{filter}}_bold.nii.gz"
+    shell:
+        'python denoise.py '
+        '--input_img {input} '
+        '--denoise_strategy {wildcards.denoise} '
+        '--filter_strategy {wildcards.filter} '
+        '--output_img {output} '
+
+rule falff:
+    input:
+        img=f"{data_dir}fmriprep_denoised/{{subject}}/ses-{{session}}/func/{{subject}}_ses-{{session}}_task-rest_space-{{space}}_desc-preproc_denoise-{{denoise}}_filter-None_bold.nii.gz",
+        json=f"{bids_dir}{{subject}}/ses-{{session}}/func/{{subject}}_ses-{{session}}_task-rest_bold.json"
+    params:
+        min_low_freq=0.01,
+        max_low_freq=0.08,
+        min_total_freq=0.0,
+        max_total_freq=100
+    output:
+        f"{data_dir}fmriprep_denoised_fALFF/{{subject}}/ses-{{session}}/func/{{subject}}_ses-{{session}}_task-rest_space-{{space}}_desc-preproc_denoise-{{denoise}}_filter-None_fALFF.nii.gz"
+    shell:
+        'python fALLF.py '
+        '--input_img {input.img} '
+        '--input_img_json {input.json} '
+        '--output_img {output} '
+        '--min_low_freq {params.min_low_freq} '
+        '--max_low_freq {params.max_low_freq} '
+        '--min_total_freq {params.min_total_freq} '
+        '--max_total_freq {params.max_total_freq} '
+
+rule falff_roi:
+    input:
+        f"{data_dir}fmriprep_denoised_fALFF/{{subject}}/ses-{{session}}/func/{{subject}}_ses-{{session}}_task-rest_space-{{space}}_desc-preproc_denoise-{{denoise}}_filter-None_fALFF.nii.gz"
+    output:
+        f"{data_dir}fmriprep_denoised_fALFF/{{subject}}/ses-{{session}}/func/{{subject}}_ses-{{session}}_task-rest_space-{{space}}_desc-preproc_denoise-{{denoise}}_filter-None_fALFF_roi-{{mask}}.csv"
+    shell:
+        'python parcellate.py '
+        '--input_img {input} '
+        '--parcellation ../masks/{wildcards.mask}.nii.gz '
+        '--output {output} '
+
+rule seed_to_voxel_fc:
+    input:
+        f"{data_dir}fmriprep_denoised/{{subject}}/ses-{{session}}/func/{{subject}}_ses-{{session}}_task-rest_space-{{space}}_desc-preproc_denoise-{{denoise}}_filter-{{filter}}_bold.nii.gz"
+    output:
+        f"{data_dir}fmriprep_denoised_fc/{{subject}}/ses-{{session}}/func/{{subject}}_ses-{{session}}_task-rest_space-{{space}}_desc-preproc_denoise-{{denoise}}_filter-{{filter}}_fc-{{mask}}-wholebrain.nii.gz"
+    shell:
+        'python seed_to_voxel_fc.py '
+        '--input_img {input} '
+        '--mask ../masks/{wildcards.mask}.nii.gz '
+        '--output_img {output} '
+
+rule parcellate:
+    input:
+        f"{data_dir}fmriprep_denoised/{{subject}}/ses-{{session}}/func/{{subject}}_ses-{{session}}_task-rest_space-{{space}}_desc-preproc_denoise-{{denoise}}_filter-{{filter}}_bold.nii.gz"
+    params:
+        parcellation=parcellation
+    output:
+        f"{data_dir}fmriprep_denoised_ts/{{subject}}/ses-{{session}}/func/{{subject}}_ses-{{session}}_task-rest_space-{{space}}_desc-preproc_denoise-{{denoise}}_filter-{{filter}}_ts-{{parcel_label}}.csv"
+    shell:
+        'python parcellate.py '
+        '--input_img {input} '
+        '--parcellation {params.parcellation} '
+        '--output {output} '
+
+rule fc_matrix:
+    input:
+        f"{data_dir}fmriprep_denoised_ts/{{subject}}/ses-{{session}}/func/{{subject}}_ses-{{session}}_task-rest_space-{{space}}_desc-preproc_denoise-{{denoise}}_filter-{{filter}}_ts-{{parcel_label}}.csv"
+    params: 
+        method="correlation"
+    output:
+        f"{data_dir}fmriprep_denoised_fc/{{subject}}/ses-{{session}}/func/{{subject}}_ses-{{session}}_task-rest_space-{{space}}_desc-preproc_denoise-{{denoise}}_filter-{{filter}}_fc-{{parcel_label}}.csv"
+    shell:
+        'python estimate_fc.py '
+        '--input {input} '
+        '--method {params.method} '
+        '--output {output} '
+
+rule glm:
+    input:
+        img1=f"{data_dir}fmriprep/{{subject}}/ses-{{session}}/func/{{subject}}_ses-{{session}}_task-pictures_run-01_space-{{space}}_desc-preproc_bold.nii.gz",
+        img2=f"{data_dir}fmriprep/{{subject}}/ses-{{session}}/func/{{subject}}_ses-{{session}}_task-pictures_run-02_space-{{space}}_desc-preproc_bold.nii.gz",
+        event1=f"{bids_dir}{{subject}}/ses-{{session}}/func/{{subject}}_ses-{{session}}_task-pictures_run-01_events.tsv",
+        event2=f"{bids_dir}{{subject}}/ses-{{session}}/func/{{subject}}_ses-{{session}}_task-pictures_run-01_events.tsv",
+        json1=f"{bids_dir}{{subject}}/ses-{{session}}/func/{{subject}}_ses-{{session}}_task-pictures_run-01_bold.json",
+        json2=f"{bids_dir}{{subject}}/ses-{{session}}/func/{{subject}}_ses-{{session}}_task-pictures_run-02_bold.json"
+    output:
+        f"{data_dir}fmriprep_GLM/{{subject}}/ses-{{session}}/func/{{subject}}_ses-{{session}}_task-pictures_space-{{space}}_denoise-{{task_denoise}}_GLM.pkl"
+    shell:
+        'python glm.py '
+        '--input_imgs {input.img1} {input.img2} '
+        '--event_files {input.event1} {input.event2} '
+        '--bold_jsons {input.json1} {input.json2} '
+        '--confound_strategy {wildcards.task_denoise} '
+        '--output_img {output} '
+    
+rule glm_contrast:
+    input:
+        f"{data_dir}fmriprep_GLM/{{subject}}/ses-{{session}}/func/{{subject}}_ses-{{session}}_task-pictures_space-{{space}}_denoise-{{task_denoise}}_GLM.pkl"
+    output:
+        f"{data_dir}fmriprep_GLM/{{subject}}/ses-{{session}}/func/{{subject}}_ses-{{session}}_task-pictures_space-{{space}}_denoise-{{task_denoise}}_contrast-{{contrast}}-{{output_type}}.nii.gz"
+    shell:
+        'python glm_contrast.py '
+        '--input_glm {input} '
+        '--contrast_label {wildcards.contrast} '
+        '--output_type {wildcards.output_type} '
+        '--output_img {output} '
+
+rule glm_roi:
+    input:
+        f"{data_dir}fmriprep_GLM/{{subject}}/ses-{{session}}/func/{{subject}}_ses-{{session}}_task-pictures_space-{{space}}_denoise-{{task_denoise}}_contrast-{{contrast}}-{{output_type}}.nii.gz"
+    output:
+        f"{data_dir}fmriprep_GLM/{{subject}}/ses-{{session}}/func/{{subject}}_ses-{{session}}_task-pictures_space-{{space}}_denoise-{{task_denoise}}_contrast-{{contrast}}-{{output_type}}_roi-{{mask}}.csv"
+    shell:
+        'python parcellate.py '
+        '--input_img {input} '
+        '--parcellation ../masks/{wildcards.mask}.nii.gz '
+        '--output {output} '
+

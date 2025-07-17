@@ -1,0 +1,42 @@
+{
+  "baseline": {
+    "strategy": ["high_pass"]
+  },
+  "simple": {
+    "denoise_strategy": "simple"
+  },
+  "simple+gsr": {
+    "denoise_strategy": "simple",
+    "global_signal": "basic"
+  },
+  "scrubbing.5": {
+    "denoise_strategy": "scrubbing",
+    "fd_threshold": 0.5,
+    "std_dvars_threshold": null
+  },
+  "scrubbing.5+gsr": {
+    "denoise_strategy": "scrubbing",
+    "global_signal": "basic",
+    "fd_threshold": 0.5,
+    "std_dvars_threshold": null
+  },
+  "Ciric36p": {
+    "denoise_strategy": "scrubbing",
+    "motion": "full",
+    "wm_csf": "full",
+    "global_signal": "full",
+    "demean": "True",
+    "fd_threshold": 0.5,
+    "scrub": 0
+  },
+  "butterworth_0.01_0.10": {
+    "filter": "butterworth",
+    "high_pass": 0.01,
+    "low_pass": 0.10
+  },
+  "None": {
+    "filter": false,
+    "high_pass": null,
+    "low_pass": null
+  }
+}
