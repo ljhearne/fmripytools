@@ -129,6 +129,7 @@ def main():
     args = parser.parse_args()
 
     denoise_img(args.input_img,
+                args.input_img_json,
                 args.denoise_strategy,
                 args.filter_strategy,
                 args.output_img)
