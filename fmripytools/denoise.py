@@ -124,7 +124,7 @@ def denoise_img(input_img, input_img_json, confound_strategy,
     return output_img
 
 
-if __name__ == '__main__':
+def main():
     # Read in user-specified parameters
     args = parser.parse_args()
 
@@ -132,3 +132,7 @@ if __name__ == '__main__':
                 args.denoise_strategy,
                 args.filter_strategy,
                 args.output_img)
+
+
+if __name__ == '__main__':
+    main()
