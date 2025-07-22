@@ -63,8 +63,7 @@ def load_config():
 def denoise_img(input_img, input_img_json, confound_strategy,
                 filter_strategy, output_img):
 
-    # Interpret the denoise strategy based on the json
-    # Load confound strat (assumed to be in same location)
+    # Load the dict of possible denoise strategies
     parameters = load_config()
 
     # Get confounds
