@@ -1,1 +1,1 @@
-recursive-include your_package/config *.json
+recursive-include fmripytools/config *.json
