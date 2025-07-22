@@ -11,6 +11,7 @@ https://github.com/SIMEXP/fmriprep-denoise-benchmark/blob/b9d44504384b3641dbd1d0
 
 """
 import json
+from importlib import resources
 import os
 import nibabel as nb
 from nilearn.signal import clean
@@ -52,13 +53,19 @@ parser.add_argument('--output_img',
                     help='''output file''')
 
 
+def load_config():
+    with resources.files('fmripytools.config') \
+            .joinpath('denoise_config.json').open('r') as f:
+        config = json.load(f)
+    return config
+
+
 def denoise_img(input_img, input_img_json, confound_strategy,
                 filter_strategy, output_img):
 
     # Interpret the denoise strategy based on the json
     # Load confound strat (assumed to be in same location)
-    parameters = json.load(open(os.path.dirname(os.path.realpath(__file__))
-                                + '/denoise_config.json',))
+    parameters = load_config()
 
     # Get confounds
     confounds, sample_mask = load_confounds_strategy(
