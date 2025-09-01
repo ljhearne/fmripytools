@@ -16,6 +16,7 @@ setup(
     entry_points={
         'console_scripts': [
             'denoise = fmripytools.denoise:main',
+            'parcellate = fmripytools.parcellate:main',
         ],
     }
 )
