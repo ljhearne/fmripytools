@@ -193,7 +193,7 @@ def nifti_parcellate(input, parc, output):
     return time_series
 
 
-if __name__ == '__main__':
+def main():
     # Read in user-specified parameters
     args = parser.parse_args()
 
@@ -206,3 +206,7 @@ if __name__ == '__main__':
 
     else:
         print("type not known")
+
+
+if __name__ == '__main__':
+    main()
