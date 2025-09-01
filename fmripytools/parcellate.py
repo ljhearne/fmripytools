@@ -185,7 +185,7 @@ def cifti_parcellate(input_cifti, parc_cifti, output):
 
 def nifti_parcellate(input, parc, output):
     masker = NiftiLabelsMasker(
-        labels_img=parc, memory_level=5, verbose=1)
+        labels_img=parc, verbose=1)
     time_series = masker.fit_transform(input)
 
     # save out
