@@ -85,7 +85,7 @@ def denoise_img(input_data, ref_img, ref_img_json, confound_strategy,
 
         # get timeseries
         if input_data.endswith('.csv'):
-            timeseries = np.loadtxt(input, delimiter=",")
+            timeseries = np.loadtxt(input_data, delimiter=",")
 
         elif input_data.endswith('.dtseries.nii'):
             img = nb.load(input_data)
