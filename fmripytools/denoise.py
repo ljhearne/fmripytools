@@ -77,11 +77,15 @@ def denoise_img(input_img, input_img_json, confound_strategy,
     t_r = json.load(open(input_img_json,))['RepetitionTime']
 
     # Clean and save out timeseries
-    if input_img.endswith('.dtseries.nii'):
+    if input_img.endswith('.dtseries.nii') or input_img.endswith('.csv'):
 
         # get timeseries
-        img = nb.load(input_img)
-        timeseries = img.get_fdata()
+        if input_img.endswith('.csv'):
+            timeseries = np.loadtxt(input, delimiter=",")
+
+        elif input_img.endswith('.dtseries.nii'):
+            img = nb.load(input_img)
+            timeseries = img.get_fdata()
 
         # clean the timeseries
         # note: filtering is already done on the confounds
@@ -97,20 +101,25 @@ def denoise_img(input_img, input_img_json, confound_strategy,
             kwargs={'clean__filter': filter_params['filter']}
         )
 
-        # save out accounting for lose of timepoints with
-        # sample_mask
-        new_header = (
-            nb.cifti2.cifti2_axes.SeriesAxis(
-                start=0.0,
-                step=t_r,
-                size=clean_timeseries.shape[0],
-                unit='second'),
-            img.header.get_axis(1)
-        )
+        # save out
+        if input_img.endswith('.csv'):
+            np.savetxt(output_img, clean_timeseries, delimiter=",")
 
-        nb.save(nb.Cifti2Image(clean_timeseries,
-                               header=new_header,
-                               nifti_header=img.nifti_header), output_img)
+        elif input_img.endswith('.dtseries.nii'):
+            # accounting for loss of timepoints with
+            # sample_mask
+            new_header = (
+                nb.cifti2.cifti2_axes.SeriesAxis(
+                    start=0.0,
+                    step=t_r,
+                    size=clean_timeseries.shape[0],
+                    unit='second'),
+                img.header.get_axis(1)
+            )
+
+            nb.save(nb.Cifti2Image(clean_timeseries,
+                                   header=new_header,
+                                   nifti_header=img.nifti_header), output_img)
 
     elif input_img.endswith('.nii.gz'):
         # Clean the timeseries
