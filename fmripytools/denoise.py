@@ -26,30 +26,34 @@ parser = argparse.ArgumentParser(
     description='''Run nilearn based BOLD denoising''')
 
 # These parameters must be passed to the function
-parser.add_argument('--input_img',
+parser.add_argument('--input_data',
                     type=str,
-                    default=None,
-                    help='''input bold data''')
+                    required=True,
+                    help='''Input bold data''')
 
-parser.add_argument('--input_img_json',
+parser.add_argument('--ref_img',
                     type=str,
-                    default=None,
+                    help='''img needed to gather confounds''')
+
+parser.add_argument('--ref_img_json',
+                    type=str,
+                    required=True,
                     help='''json file associated with bold data''')
 
 parser.add_argument('--denoise_strategy',
                     type=str,
-                    default=None,
+                    required=True,
                     help='''denoise strategy label
                     located in denoise_strategies.json''')
 
 parser.add_argument('--filter_strategy',
                     type=str,
-                    default=None,
+                    required=True,
                     help='''filter strategy located in json''')
 
 parser.add_argument('--output_img',
                     type=str,
-                    default=None,
+                    required=True,
                     help='''output file''')
 
 
@@ -60,7 +64,7 @@ def load_config():
     return config
 
 
-def denoise_img(input_img, input_img_json, confound_strategy,
+def denoise_img(input_data, ref_img, ref_img_json, confound_strategy,
                 filter_strategy, output_img):
 
     # Load the dict of possible denoise strategies
@@ -68,23 +72,23 @@ def denoise_img(input_img, input_img_json, confound_strategy,
 
     # Get confounds
     confounds, sample_mask = load_confounds_strategy(
-        input_img, **parameters[confound_strategy])
+        ref_img, **parameters[confound_strategy])
 
     # Load filter strat
     filter_params = parameters[filter_strategy]
 
     # Get TR
-    t_r = json.load(open(input_img_json,))['RepetitionTime']
+    t_r = json.load(open(ref_img_json,))['RepetitionTime']
 
     # Clean and save out timeseries
-    if input_img.endswith('.dtseries.nii') or input_img.endswith('.csv'):
+    if input_data.endswith('.dtseries.nii') or input_data.endswith('.csv'):
 
         # get timeseries
-        if input_img.endswith('.csv'):
+        if input_data.endswith('.csv'):
             timeseries = np.loadtxt(input, delimiter=",")
 
-        elif input_img.endswith('.dtseries.nii'):
-            img = nb.load(input_img)
+        elif input_data.endswith('.dtseries.nii'):
+            img = nb.load(input_data)
             timeseries = img.get_fdata()
 
         # clean the timeseries
@@ -102,10 +106,10 @@ def denoise_img(input_img, input_img_json, confound_strategy,
         )
 
         # save out
-        if input_img.endswith('.csv'):
+        if input_data.endswith('.csv'):
             np.savetxt(output_img, clean_timeseries, delimiter=",")
 
-        elif input_img.endswith('.dtseries.nii'):
+        elif input_data.endswith('.dtseries.nii'):
             # accounting for loss of timepoints with
             # sample_mask
             new_header = (
@@ -121,9 +125,9 @@ def denoise_img(input_img, input_img_json, confound_strategy,
                                    header=new_header,
                                    nifti_header=img.nifti_header), output_img)
 
-    elif input_img.endswith('.nii.gz'):
+    elif input_data.endswith('.nii.gz'):
         # Clean the timeseries
-        cleaned_img = clean_img(input_img,
+        cleaned_img = clean_img(input_data,
                                 detrend=True,
                                 standardize='zscore_sample',
                                 confounds=confounds,
@@ -143,8 +147,11 @@ def main():
     # Read in user-specified parameters
     args = parser.parse_args()
 
-    denoise_img(args.input_img,
-                args.input_img_json,
+    if args.ref_img is None:
+        args.ref_img = args.input_data
+    denoise_img(args.input_data,
+                args.ref_img,
+                args.ref_img_json,
                 args.denoise_strategy,
                 args.filter_strategy,
                 args.output_img)
