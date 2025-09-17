@@ -17,6 +17,7 @@ setup(
         'console_scripts': [
             'denoise = fmripytools.denoise:main',
             'parcellate = fmripytools.parcellate:main',
+            'estimate_fc = fmripytools.estimate_fc:main'
         ],
     }
 )
