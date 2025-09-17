@@ -149,6 +149,7 @@ def main():
 
     if args.ref_img is None:
         args.ref_img = args.input_data
+        
     denoise_img(args.input_data,
                 args.ref_img,
                 args.ref_img_json,
